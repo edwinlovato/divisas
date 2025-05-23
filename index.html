@@ -1,1 +1,228 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora de Divisas</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e9f7ef;
+            border-radius: 4px;
+            display: none;
+        }
+        .error {
+            color: red;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Calculadora de Divisas</h1>
+        
+        <div class="form-group">
+            <label for="amount">Cantidad:</label>
+            <input type="number" id="amount" placeholder="Ingrese la cantidad" step="0.01" min="0">
+        </div>
+        
+        <div class="form-group">
+            <label for="from">De:</label>
+            <select id="from">
+                <option value="USD">Dólar Estadounidense (USD)</option>
+                <option value="EUR">Euro (EUR)</option>
+                <option value="GBP">Libra Esterlina (GBP)</option>
+                <option value="BTC">Bitcoin (BTC)</option>
+                <option value="JPY">Yen Japonés (JPY)</option>
+                <option value="CNY">Yuan Chino (CNY)</option>
+                <option value="MXN">Peso Mexicano (MXN)</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="to">A:</label>
+            <select id="to">
+                <option value="USD">Dólar Estadounidense (USD)</option>
+                <option value="EUR" selected>Euro (EUR)</option>
+                <option value="GBP">Libra Esterlina (GBP)</option>
+                <option value="BTC">Bitcoin (BTC)</option>
+                <option value="JPY">Yen Japonés (JPY)</option>
+                <option value="CNY">Yuan Chino (CNY)</option>
+                <option value="MXN">Peso Mexicano (MXN)</option>
+            </select>
+        </div>
+        
+        <button id="convert">Convertir</button>
+        
+        <div id="result"></div>
+        <div id="error" class="error"></div>
+        
+        <div class="form-group" style="margin-top: 30px;">
+            <h3>Tasas de cambio actuales (1 USD):</h3>
+            <div id="rates"></div>
+        </div>
+    </div>
 
+    <script>
+document.addEventListener('DOMContentLoaded', function() {
+    const apiKey = 'TU_API_KEY_AQUI'; // Reemplaza con tu API key
+    const apiUrl = `https://v6.exchangerate-api.com/v6/${apiKey}/latest/USD`;
+    
+    // Elementos del DOM
+    const amountInput = document.getElementById('amount');
+    const fromSelect = document.getElementById('from');
+    const toSelect = document.getElementById('to');
+    const convertBtn = document.getElementById('convert');
+    const resultDiv = document.getElementById('result');
+    const errorDiv = document.getElementById('error');
+    const ratesDiv = document.getElementById('rates');
+    
+    let exchangeRates = {};
+    
+    // Cargar tasas de cambio iniciales
+    fetchExchangeRates();
+    
+    // Convertir divisas
+    convertBtn.addEventListener('click', function() {
+        const amount = parseFloat(amountInput.value);
+        const fromCurrency = fromSelect.value;
+        const toCurrency = toSelect.value;
+        
+        // Validaciones
+        if (isNaN(amount)) {
+            errorDiv.textContent = 'Por favor ingrese una cantidad válida';
+            resultDiv.style.display = 'none';
+            return;
+        }
+        
+        if (amount <= 0) {
+            errorDiv.textContent = 'La cantidad debe ser mayor que cero';
+            resultDiv.style.display = 'none';
+            return;
+        }
+        
+        errorDiv.textContent = '';
+        
+        // Realizar conversión
+        if (exchangeRates[fromCurrency] && exchangeRates[toCurrency]) {
+            const fromRate = exchangeRates[fromCurrency];
+            const toRate = exchangeRates[toCurrency];
+            
+            // Convertir primero a USD y luego a la moneda destino
+            const amountInUSD = amount / fromRate;
+            const convertedAmount = amountInUSD * toRate;
+            
+            // Mostrar resultado
+            resultDiv.innerHTML = `
+                <strong>${amount.toFixed(2)} ${fromCurrency} = ${convertedAmount.toFixed(2)} ${toCurrency}</strong>
+                <p>Tasa de cambio: 1 ${fromCurrency} = ${(toRate / fromRate).toFixed(6)} ${toCurrency}</p>
+            `;
+            resultDiv.style.display = 'block';
+        } else {
+            errorDiv.textContent = 'No se pudieron obtener las tasas de cambio. Intente nuevamente.';
+            resultDiv.style.display = 'none';
+        }
+    });
+    
+    // Obtener tasas de cambio desde la API
+    function fetchExchangeRates() {
+        fetch(apiUrl)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Error al obtener los datos');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.result === 'success') {
+                    exchangeRates = data.conversion_rates;
+                    displayCurrentRates();
+                } else {
+                    throw new Error(data['error-type']);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                errorDiv.textContent = 'Error al cargar las tasas de cambio. ' + error.message;
+                
+                // Mostrar tasas de cambio de ejemplo (para desarrollo)
+                if (apiKey === 'TU_API_KEY_AQUI') {
+                    exchangeRates = {
+                        USD: 1,
+                        EUR: 0.85,
+                        GBP: 0.73,
+                        BTC: 0.000022,
+                        JPY: 110.25,
+                        CNY: 6.45,
+                        MXN: 20.15
+                    };
+                    displayCurrentRates();
+                    errorDiv.textContent += ' (Mostrando datos de ejemplo)';
+                }
+            });
+    }
+    
+    // Mostrar tasas de cambio actuales
+    function displayCurrentRates() {
+        if (exchangeRates.USD) {
+            ratesDiv.innerHTML = `
+                <p>EUR: ${exchangeRates.EUR?.toFixed(4) || 'N/A'}</p>
+                <p>GBP: ${exchangeRates.GBP?.toFixed(4) || 'N/A'}</p>
+                <p>BTC: ${exchangeRates.BTC?.toFixed(8) || 'N/A'}</p>
+                <p>JPY: ${exchangeRates.JPY?.toFixed(2) || 'N/A'}</p>
+                <p>CNY: ${exchangeRates.CNY?.toFixed(4) || 'N/A'}</p>
+                <p>MXN: ${exchangeRates.MXN?.toFixed(4) || 'N/A'}</p>
+                <p><small>Última actualización: ${new Date().toLocaleString()}</small></p>
+            `;
+        }
+    }
+});
+    </script>
+</body>
+</html>
